@@ -17,7 +17,7 @@ DEFINE_MFLAG(bool, r, false, "Input value r for blah");
 // Mimic Dynamic Loaded Lib
 // Note: Flags declared in dynamic libs will be resolved at static-init step
 // at their load time. Hence they will behave like usual flags declared.
-extern int MFLAGS_q;
+ALLOW_DYNAMIC_FLAG(q);
 int MFLAGS_q = 0;
 void LoadedDynamicLib() {
   ::mflags::AutoAssign<int> AutoAssignVar_q {"q", __FILE__, &MFLAGS_q, "", ""};
@@ -55,11 +55,8 @@ int main() {
   {
     std::cout << "===== Test4 ===== " << std::endl;
     const char* argv[] = {"./a.out", "--x", "4", "--q", "88"};
-    // Expect Warning: Command line option '--q' is not recognized so far.
-    mflags::ParseFlags(5, argv, false /* strict_mode */);
+    mflags::ParseFlags(5, argv);
     assert(MFLAGS_x == 4);
-    // If shared lib was never loaded dynamically, expected error at the end of
-    // program: `Command line option '--q' was never recognized`.
     LoadedDynamicLib();
     assert(MFLAGS_q == 88);
     std::cout << "===== All Good ===== " << std::endl;
@@ -76,20 +73,27 @@ int main() {
     const char* argv[] = {"./a.out", "--x", "a4", "--y", "-45.68"};
     // Expected Crash : ERR: Failed to parse value "'a4' for the flag 'x'.
     mflags::ParseFlags(5, argv);
-    std::cout << "===== Program should have crash by now ===== " << std::endl;
+    std::cout << "===== Program should have crashed by now ===== " << std::endl;
   }
   if (false) {
     std::cout << "===== Manual Failure Test 2 ===== " << std::endl;
     const char* argv[] = {"./a.out", "x", "a4"};
     // Expected Crash : ERR: Command line option 'x' should start with `--`.
     mflags::ParseFlags(3, argv);
-    std::cout << "===== Program should have crash by now ===== " << std::endl;
+    std::cout << "===== Program should have crashed by now ===== " << std::endl;
   }
   if (false) {
     std::cout << "===== Manual Failure Test 3 ===== " << std::endl;
     const char* argv[] = {"./a.out", "--x"};
     // Expected Crash : No value for the mflag command line flag '--x'
     mflags::ParseFlags(2, argv);
-    std::cout << "===== Program should have crash by now ===== " << std::endl;
+    std::cout << "===== Program should have crashed by now ===== " << std::endl;
+  }
+  if (false) {
+    std::cout << "===== Manual Failure Test 4 ===== " << std::endl;
+    const char* argv[] = {"./a.out", "--x1", "33"};
+    // Expected Crash : Unknown command line option '--x1'.
+    mflags::ParseFlags(3, argv);
+    std::cout << "===== Program should have crashed by now ===== " << std::endl;
   }
 }

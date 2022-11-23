@@ -7,6 +7,7 @@
 
 #include <vector>
 #include <map>
+#include <set>
 #include <iostream>
 #include <functional>
 #include <cstdlib>
@@ -25,23 +26,23 @@ struct GlobalState {
   // In case of `--price 110`, the "price" is @name and "110" is @value.
   // The @is_resolved is false by default ; When the C++ variable
   // `int MFLAGS_price` is updated to 110, the @is_resolved becomes true.
-  std::map<std::string, std::pair<bool, const char*>> command_line_options;
+  std::map<std::string, const char*> command_line_options;
+
+  std::set<std::string> expected_command_line_option;
 
   std::ostringstream help_text;
   GlobalState() {
     help_text << "Command line Options:\n\n --help / -h   : Display help text\n\n";
   }
-  ~GlobalState() {
-    for (auto& it : command_line_options) {
-      if (!it.second.first) {
-        std::cerr << "Command line option '--" << it.first << "' was never "
-                     "recognized." << std::endl;
-      }
-    }
-  }
 };
 
 GlobalState& GlobalStateInstance();
+
+struct AllowDynamicFlag {
+  AllowDynamicFlag(const char* flag) {
+    GlobalStateInstance().expected_command_line_option.insert(flag);
+  }
+};
 
 inline void parsingFailure(const char* name, const char* value,
                            const char* filename) {
@@ -99,7 +100,6 @@ inline void StrValueToVariable(const char* name, const char* value,
   parsingFailure(name, value, filename);
 }
 
-
 template<typename T>
 class AutoAssign {
  public:
@@ -114,9 +114,9 @@ class AutoAssign {
                       << help_text << "\n\n";
     auto it = g_state.command_line_options.find(name);
     if (it != g_state.command_line_options.end()) {
-      StrValueToVariable(name, it->second.second, filename, variable);
-      it->second.first = true;
+      StrValueToVariable(name, it->second, filename, variable);
     } else {
+      g_state.expected_command_line_option.insert(name);
       g_state.unresolved_flags.push_back({name,
         [name, variable, filename](const char* value) {
           StrValueToVariable(name, value, filename, variable);
@@ -125,7 +125,7 @@ class AutoAssign {
   }
 };
 
-inline void ParseFlags(int argc, const char** argv, bool strict_mode=true) {
+inline void ParseFlags(int argc, const char** argv) {
   auto& g_state = GlobalStateInstance();
   for (int i = 1; i < argc; ++i) {
     std::string name = argv[i];
@@ -146,28 +146,20 @@ inline void ParseFlags(int argc, const char** argv, bool strict_mode=true) {
                 << "'" << std::endl;
       std::abort();
     }
-    g_state.command_line_options[name.substr(2)] = {false, argv[i+1]};
+    name = name.substr(2);
+    if (g_state.expected_command_line_option.count(name) == 0) {
+      std::cerr << "Unknown command line option '--" << name << "'."
+                << std::endl;
+      std::abort();
+    }
+    g_state.command_line_options[name] = argv[i+1];
     i++;
   }
 
   for (auto& it : g_state.unresolved_flags) {
     auto it2 = g_state.command_line_options.find(it.first);
     if (it2 != g_state.command_line_options.end()) {
-      it.second(it2->second.second);
-      it2->second.first = true;
-    }
-  }
-  for (auto& it : g_state.command_line_options) {
-    if (!it.second.first) {
-      if (strict_mode) {
-        std::cerr << "Unknown command line option '--" << it.first << "'."
-                  << std::endl;
-        std::abort();
-      } else {
-        std::cerr << "Warning: Command line option '--" << it.first <<
-          "' is not recognized so far, but could be recognized later by flags "
-          "decalred in dynamically loaded lib." << std::endl;
-      }
+      it.second(it2->second);
     }
   }
 }
@@ -181,3 +173,4 @@ inline void ParseFlags(int argc, const char** argv, bool strict_mode=true) {
   type MFLAGS_ ## var = default_value;                                  \
   ::mflags::AutoAssign<type> AutoAssignVar_ ## var {                    \
       #var, __FILE__, &MFLAGS_ ## var, help_text, #type};
+#define ALLOW_DYNAMIC_FLAG(var) ::mflags::AllowDynamicFlag AllowDynamicFlagVar_ ## var {#var};
