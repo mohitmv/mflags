@@ -1,9 +1,12 @@
-// Author: mohitsaini1196@gmail.com
+// Author: Mohit <mohitsaini1196@gmail.com>
 // Github: https://github.com/mohitmv/mflags
-// Feel free to copy it as long as you don't remove the Author part.
+// Feel free to copy it as long as author part is not removed.
 
-// MFLAGS : A header only, super simple, command line flags library ;
+// MFLAGS : A header only, super simple, command line flags library.
 // Learn more @ README.md
+
+#ifndef MFLAGS_H
+#define MFLAGS_H
 
 #include <vector>
 #include <map>
@@ -40,7 +43,9 @@ GlobalState& GlobalStateInstance();
 
 struct AllowDynamicFlag {
   AllowDynamicFlag(const char* flag) {
-    GlobalStateInstance().expected_command_line_option.insert(flag);
+    auto& g_state = GlobalStateInstance();
+    g_state.expected_command_line_option.insert(flag);
+    g_state.help_text << " --" << flag << " VALUE  : A flag for dynamic libs" << "\n\n";
   }
 };
 
@@ -174,3 +179,5 @@ inline void ParseFlags(int argc, const char** argv) {
   ::mflags::AutoAssign<type> AutoAssignVar_ ## var {                    \
       #var, __FILE__, &MFLAGS_ ## var, help_text, #type};
 #define ALLOW_DYNAMIC_FLAG(var) ::mflags::AllowDynamicFlag AllowDynamicFlagVar_ ## var {#var};
+
+#endif  // MFLAGS_H

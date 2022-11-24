@@ -1,5 +1,6 @@
 #include "mflags.h"
 
+#include <dlfcn.h>
 #include <cassert>
 
 DEFINE_MFLAG(int, x, 0, "Input value x for blah");
@@ -14,14 +15,9 @@ DEFINE_MFLAG(int, p, 0, "Input value p for blah");
 DECLARE_MFLAG(bool, r);
 DEFINE_MFLAG(bool, r, false, "Input value r for blah");
 
-// Mimic Dynamic Loaded Lib
 // Note: Flags declared in dynamic libs will be resolved at static-init step
 // at their load time. Hence they will behave like usual flags declared.
 ALLOW_DYNAMIC_FLAG(q);
-int MFLAGS_q = 0;
-void LoadedDynamicLib() {
-  ::mflags::AutoAssign<int> AutoAssignVar_q {"q", __FILE__, &MFLAGS_q, "", ""};
-}
 
 MFLAG_ODR_INIT();
 
@@ -52,21 +48,25 @@ int main() {
     assert(MFLAGS_r);
     std::cout << "===== All Good ===== " << std::endl;
   }
-  {
-    std::cout << "===== Test4 ===== " << std::endl;
-    const char* argv[] = {"./a.out", "--x", "4", "--q", "88"};
-    mflags::ParseFlags(5, argv);
-    assert(MFLAGS_x == 4);
-    LoadedDynamicLib();
-    assert(MFLAGS_q == 88);
-    std::cout << "===== All Good ===== " << std::endl;
-  }
   if (false) {
     std::cout << "===== Manual Test ===== " << std::endl;
     const char* argv[] = {"./a.out", "--xyz", "4", "--help"};
     // Expect: should print help text and exit(0).
     mflags::ParseFlags(4, argv);
     std::cout << "===== Program should not reach here ===== " << std::endl;
+  }
+  {
+    std::cout << "===== Test4 ===== " << std::endl;
+    const char* argv[] = {"./a.out", "--x", "4", "--q", "88"};
+    mflags::ParseFlags(5, argv);
+    assert(MFLAGS_x == 4);
+    auto handle = dlopen("shared_lib.so", RTLD_NOW);
+    assert(handle != nullptr);
+    using FSignature = int(*)();
+    auto F = (FSignature)dlsym(handle, "F");
+    assert(F != nullptr);
+    assert(F() == 88);
+    std::cout << "===== All Good ===== " << std::endl;
   }
   if (false) {
     std::cout << "===== Manual Failure Test 1 ===== " << std::endl;
