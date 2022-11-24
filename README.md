@@ -1,4 +1,4 @@
-# A header only, super simple, command line flags library
+## A header only, super simple, command line flags library
 
 Inspired from gflags style of declaring flags and auto parsing them. This lib
 is dead simple, much lighter than gflags (180 lines in a single header file).
