@@ -41,14 +41,6 @@ struct GlobalState {
 
 GlobalState& GlobalStateInstance();
 
-struct AllowDynamicFlag {
-  AllowDynamicFlag(const char* flag) {
-    auto& g_state = GlobalStateInstance();
-    g_state.expected_command_line_option.insert(flag);
-    g_state.help_text << " --" << flag << " VALUE  : A flag for dynamic libs" << "\n\n";
-  }
-};
-
 inline void parsingFailure(const char* name, const char* value,
                            const char* filename) {
   std::cerr << "ERR: Failed to parse command line value '" << value
@@ -117,16 +109,11 @@ class AutoAssign {
     auto& g_state = GlobalStateInstance();
     g_state.help_text << " --" << name << " VALUE  : (" << type_string << ") "
                       << help_text << "\n\n";
-    auto it = g_state.command_line_options.find(name);
-    if (it != g_state.command_line_options.end()) {
-      StrValueToVariable(name, it->second, filename, variable);
-    } else {
-      g_state.expected_command_line_option.insert(name);
-      g_state.unresolved_flags.push_back({name,
-        [name, variable, filename](const char* value) {
-          StrValueToVariable(name, value, filename, variable);
-        }});
-    }
+    g_state.expected_command_line_option.insert(name);
+    g_state.unresolved_flags.push_back({name,
+      [name, variable, filename](const char* value) {
+        StrValueToVariable(name, value, filename, variable);
+      }});
   }
 };
 
@@ -178,6 +165,5 @@ inline void ParseFlags(int argc, const char** argv) {
   type MFLAGS_ ## var = default_value;                                  \
   ::mflags::AutoAssign<type> AutoAssignVar_ ## var {                    \
       #var, __FILE__, &MFLAGS_ ## var, help_text, #type};
-#define ALLOW_DYNAMIC_FLAG(var) ::mflags::AllowDynamicFlag AllowDynamicFlagVar_ ## var {#var};
 
 #endif  // MFLAGS_H

@@ -15,9 +15,7 @@ DEFINE_MFLAG(int, p, 0, "Input value p for blah");
 DECLARE_MFLAG(bool, r);
 DEFINE_MFLAG(bool, r, false, "Input value r for blah");
 
-// Note: Flags declared in dynamic libs will be resolved at static-init step
-// at their load time. Hence they will behave like usual flags declared.
-ALLOW_DYNAMIC_FLAG(q);
+DEFINE_MFLAG(int, q, 10, "Input value q in shared lib");
 
 MFLAG_ODR_INIT();
 
