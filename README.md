@@ -38,11 +38,6 @@ Display all options : `./program --help` (It will print options and exit(0))
 
 - Supports 4 basic types - int / double / bool / string for declaring flags.
 
-- Some of the flags could be declared in dynamically loaded shared lib, i.e. the libs loaded after
-  entering `int main()` and completing `mflags::ParseFlags`. In that case, value of the flags
-  declared in shared-lib will also be initialized at the library load time (when `static-init` runs)
-
 ## Advance Usage:
 
 More complex use cases are enumerated in `mflags_test.cpp`
-
