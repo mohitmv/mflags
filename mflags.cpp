@@ -1,0 +1,208 @@
+#include <limits>
+#include <vector>
+#include <map>
+#include <set>
+#include <utility>
+#include <iostream>
+#include <functional>
+#include <cstdlib>
+#include <sstream>
+#include <string_view>
+#include <optional>
+
+#include "mflags.h"
+
+namespace mflags {
+namespace {
+
+// template<typename T>
+// class AutoAssign {
+//  public:
+//   static_assert(
+//       std::is_same<T, int>::value || std::is_same<T, bool>::value ||
+//         std::is_same<T, double>::value || std::is_same<T, const char*>::value,
+//       "mflags supports flags of type int, bool, double and const char* only.");
+//   AutoAssign(const char* name, const char* filename, T* variable,
+//              const char* help_text, const char* type_string) {
+//     auto& g_state = GlobalStateInstance();
+//     g_state.help_text << " --" << name << " VALUE  : (" << type_string << ") "
+//                       << help_text << "\n\n";
+//     g_state.expected_command_line_option.insert(name);
+//     g_state.unresolved_flags.push_back({name,
+//       [name, variable, filename](const char* value) {
+//         StrValueToVariable(name, value, filename, variable);
+//       }});
+//   }
+// };
+
+bool SplitOnEqual(std::string_view sv, std::string_view& first,
+                  std::string_view& second) {
+  for (size_t i = 0; i < sv.size(); i++) {
+    if (sv[i] == '=') {
+      first = std::string_view(sv.data(), i);
+      second = std::string_view(sv.data() + i + 1, sv.size() - i - 1);
+      return true;
+    }
+  }
+  return false;
+}
+
+std::string StrJoin(const std::vector<const char*>& str_list, char join) {
+  std::string output;
+  bool is_first = true;
+  for (auto& x : str_list) {
+    if (!is_first) output += join;
+    output += x;
+    is_first = false;
+  }
+  return output;
+}
+
+class Parser {
+ public:
+  Parser() = default;
+
+  Status ParseFlags(int argc, const char* const* argv,
+                    std::vector<OneArgDesc> arg_desc_list);
+
+ private:
+
+  Status PreprocessArgDescList();
+
+  void CreateFieldValues(int argc, const char* const* argv);
+
+ private:
+  std::vector<OneArgDesc> arg_desc_list_;
+
+  // Generally field_names are of form "--flag"
+  std::map<std::string_view, const OneArgDesc*> field_names_map_;
+
+  // Will remain nullptr if positional_args are not needed.
+  OneArgDesc* positional_arg_desc_ = nullptr;
+  
+  std::vector<FieldArgs> field_values_;
+  std::vector<const char*> positional_args_;
+};
+
+
+Status Parser::PreprocessArgDescList() {
+  for (auto& desc : arg_desc_list_) {
+    for (auto& name : desc.opts.names) {
+      std::string_view name_sv{name};
+      if (field_names_map_.count(name_sv)) {
+        return Status::Error("Field name `") << name_sv
+          << "` declared twice across in "
+          << "argument descriptions. One at " << field_names_map_[name_sv]->filename
+          << " and other one at " << desc.filename;
+      }
+      field_names_map_[name_sv] = &desc;
+    }
+    if (desc.opts.positional) {
+      if (positional_arg_desc_ != nullptr) {
+        return Status::Error("There could be at most one positional arg.");
+      }
+      positional_arg_desc_ = &desc;
+    }
+  }
+  return Status::OK;
+}
+
+
+Status Parser::ParseFlags(int argc, const char* const* argv,
+                          std::vector<OneArgDesc> arg_desc_list) {
+  arg_desc_list_ = std::move(arg_desc_list);
+  auto result = PreprocessArgDescList();
+  if (!result.ok()) return result;
+  CreateFieldValues(argc, argv);
+  if (positional_arg_desc_ == nullptr && positional_args_.size() > 0) {
+    return Status::Error("Unrecognized param: ")
+      << StrJoin(positional_args_, ' ');
+  }
+  if (positional_arg_desc_ != nullptr) {
+    result = positional_arg_desc_->parse_func(
+        {"positional_args", positional_args_});
+    if (!result.ok()) return result;
+  }
+  for (auto& item: field_values_) {
+    auto& arg_desc = field_names_map_.at(item.field_name);
+    result = arg_desc->parse_func(item);
+    if (!result.ok()) return result;
+  }
+  return Status::OK;
+}
+
+
+void Parser::CreateFieldValues(int argc, const char* const* argv) {
+  int num_needed_optional_args = 0;
+  for (int i = 1; i < argc; ++i) {
+    std::string_view arg = argv[i];
+    std::string_view first, second;
+    if (SplitOnEqual(arg, first, second) && field_names_map_.count(first)) {
+      field_values_.push_back({first, {second.data()}});
+      num_needed_optional_args = 0;
+      continue;
+    }
+    if (field_names_map_.count(arg)) {
+      auto& arg_desc = field_names_map_.at(arg);
+      field_values_.push_back({arg, {}});
+      if (arg_desc->variable_num_args) {
+        num_needed_optional_args = std::numeric_limits<int>::max();
+        continue;
+      };
+      if (arg_desc->is_bool) {
+        num_needed_optional_args = 0;
+        if (i + 1 < argc && mflags_impl::IsBoolString(argv[i+1])) {
+          field_values_.back().args.push_back(argv[i+1]);
+          i++;
+        }
+      } else {
+        num_needed_optional_args = arg_desc->num_needed_args;
+      }
+      continue;
+    }
+    if (num_needed_optional_args > 0) {
+      field_values_.back().args.push_back(argv[i]);
+      num_needed_optional_args--;
+    } else {
+      positional_args_.push_back(argv[i]);
+    }
+  }
+}
+
+} // namespace
+
+ArgsDescriptor::ArgsDescriptor(std::string help_text)
+    : help_text_(help_text) {
+  arg_desc_list_.push_back(mflags_impl::MakeArgDesc(
+      {.names={"-h", "--help"}}, help_opt_));
+}
+
+void ArgsDescriptor::ParseFlags(int argc, const char* const* argv) const {
+  auto status = ParseFlagsInternal(argc, argv);
+  if (help_opt_) {
+    std::cerr << FullHelpText() << std::endl;
+    std::exit(0);
+  }
+  if (!status.ok()) {
+    std::cerr << status.str() << std::endl;
+    std::exit(0);
+  }
+}
+
+void ParseFlags(int argc, const char* const* argv) {
+  ArgsDescriptor args_desc{};
+  args_desc.AddGlobalDesc();
+  args_desc.ParseFlags(argc, argv);
+}
+
+Status ArgsDescriptor::ParseFlagsInternal(
+      int argc, const char* const* argv) const {
+  return Parser().ParseFlags(argc, argv, DescList());
+}
+
+Status ArgsDescriptor::ParseFlagsInternal(
+      const std::vector<const char*>& argv) const {
+  return ParseFlagsInternal(static_cast<int>(argv.size()), argv.data());
+}
+
+}  // namespace mflags
