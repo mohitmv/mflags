@@ -11,12 +11,12 @@ way, and auto-populates C++ objects, which could be core types like
 (int, string etc.) or **vector-of-core-types**, or **tuple/pair-of-core-types**,
 or **vector-of-tuple/pair-of-core-types**. All of this without requiring insane
 amount of boilerplate code from users of mflags, and without doing
-non-untuitive magical things internally.
+untuitive magical things internally.
 
 
-## How to use in a super simple way:
+## How to use mflags:
 
-There are two ways of using it, and these two ways can be compiled as well:
+There are two ways of using it, and these two ways can be combined as well:
 
 ### First way of using it:
 
