@@ -47,17 +47,6 @@ bool SplitOnEqual(std::string_view sv, std::string_view& first,
   return false;
 }
 
-std::string StrJoin(const std::vector<const char*>& str_list, char join) {
-  std::string output;
-  bool is_first = true;
-  for (auto& x : str_list) {
-    if (!is_first) output += join;
-    output += x;
-    is_first = false;
-  }
-  return output;
-}
-
 class Parser {
  public:
   Parser() = default;
@@ -116,7 +105,7 @@ Status Parser::ParseFlags(int argc, const char* const* argv,
   CreateFieldValues(argc, argv);
   if (positional_arg_desc_ == nullptr && positional_args_.size() > 0) {
     return Status::Error("Unrecognized param: ")
-      << StrJoin(positional_args_, ' ');
+      << mflags_impl::StrJoin(positional_args_, " ");
   }
   if (positional_arg_desc_ != nullptr) {
     result = positional_arg_desc_->parse_func(
@@ -171,10 +160,20 @@ void Parser::CreateFieldValues(int argc, const char* const* argv) {
 
 } // namespace
 
+std::string mflags_impl::ValueString(int num_needed_args) {
+  std::ostringstream oss;
+  for (int i = 0; i < num_needed_args; i++) {
+    oss << " ";
+    oss << "VALUE" << (i+1);
+  }
+  return oss.str();
+}
+
 ArgsDescriptor::ArgsDescriptor(std::string help_text)
     : help_text_(help_text) {
   arg_desc_list_.push_back(mflags_impl::MakeArgDesc(
-      {.names={"-h", "--help"}}, help_opt_));
+      {.names={"-h", "--help"},
+       .help_text="Show this help message and exit"},help_opt_));
 }
 
 void ArgsDescriptor::ParseFlags(int argc, const char* const* argv) const {
@@ -187,6 +186,39 @@ void ArgsDescriptor::ParseFlags(int argc, const char* const* argv) const {
     std::cerr << status.str() << std::endl;
     std::exit(0);
   }
+}
+
+
+std::string ArgsDescriptor::FullHelpText() const {
+  constexpr size_t left_size_max_size = 24;
+  auto lArgHelpString = [&](const OneArgDesc& arg_desc) {
+    std::ostringstream oss;
+    oss << "  ";
+    if (arg_desc.opts.positional) {
+      oss << "POSITIONAL";
+    } else {
+      oss << arg_desc.help_text_left;
+    }
+    auto left_side = oss.str();
+    if (left_side.size() < left_size_max_size) {
+      left_side += std::string(left_size_max_size - left_side.size(), ' ');
+    } else {
+      left_side += "\n" + std::string(left_size_max_size, ' ');
+    }
+    std::ostringstream oss2;
+    oss2 << left_side << "  " << arg_desc.opts.help_text << ". Type: "
+         << arg_desc.type_string << "\n";
+    return oss2.str();
+  };
+
+  std::ostringstream oss;
+  oss << "\n";
+  oss << help_text_ << "\n\n";
+  oss << "Command line options:\n\n";
+  for (auto& arg_desc : arg_desc_list_) {
+    oss << lArgHelpString(arg_desc);
+  }
+  return oss.str();
 }
 
 void ParseFlags(int argc, const char* const* argv) {

@@ -1,16 +1,17 @@
 // TODOs:
-
+// 7. Add cmake files.
+// 6. Add support and test out DEFINE_MFLAGS stuff.
 // 1. Test out positional params. (var-number of args, fixed args, tuple)
 // 2. Add support for std::tuple and test it out.
 // 3. Add support for required params and test them out.
 // 4. Test out issues with ArgsDescriptor example - field declared twice.
-// 5. Add support and test out default value.
-// 6. Add support and test out DEFINE_MFLAGS stuff.
+// 9. Improve help text and handle positional args.
 
 #include "mflags.h"
 
 #include <cassert>
 #include <iostream>
+#include <set>
 
 void BasicTest() {
   mflags::ArgsDescriptor args_desc{};
@@ -267,6 +268,44 @@ void TestOverwriteValue() {
   std::cout << "Passed TestOverwriteValue" << std::endl;
 }
 
+std::string g_expected_help_text = R"(
+This is an example program
+
+Command line options:
+
+  -h, --help              Show this help message and exit. Type: bool
+  -f1 VALUE1 VALUE2       For F1. Type: pair<int, int>
+  -f2, --field2 VALUE     For F2. Type: int
+  ( -f4, --field4 VALUE1 VALUE2 )*
+                          For F4. Type: vector<pair<int, int>>
+  -f3 VALUE               For F3. Type: const char*
+  -f5 VALUES...           For F5. Type: vector<int>
+)";
+
+void TestHelpText() {
+  mflags::ArgsDescriptor args_desc{"This is an example program"};
+  std::pair<int, int> f1 {};
+  int f2 = 0;
+  const char* f3 = nullptr;
+  std::vector<std::pair<int, int>> f4;
+  std::vector<int> f5;
+  args_desc.AddArg({.names={"-f1"}, .help_text="For F1"}, &f1);
+  args_desc.AddArg({.names={"-f2", "--field2"}, .help_text="For F2"}, &f2);
+  args_desc.AddArg({.names={"-f4", "--field4"}, .help_text="For F4"}, &f4);
+  args_desc.AddArg({.names={"-f3"}, .help_text="For F3"}, &f3);
+  args_desc.AddArg({.names={"-f5"}, .help_text="For F5"}, &f5);
+  auto help_text = args_desc.FullHelpText();
+  assert(g_expected_help_text.size() == help_text.size());
+  assert(g_expected_help_text == help_text);
+  std::cout << "Passed TestHelpText" << std::endl;
+}
+
+void TestMisc() {
+  mflags::ArgsDescriptor args_desc{};
+  std::set<int> f1;
+  std::cout << "Passed TestMisc" << std::endl;
+}
+
 int main() {
   BasicTest();
   InvalidInputTest_Basic();
@@ -278,7 +317,5 @@ int main() {
   TestVectorOfCoreTypes();
   TestVectorOfTupleOfCoreTypes();
   TestOverwriteValue();
+  TestHelpText();
 }
-
-
-  // std::cout << status.str() << std::endl;

@@ -55,10 +55,13 @@ struct FieldArgs {
 struct OneArgDesc {
   ArgDescOpts opts;
   std::function<Status(const FieldArgs& field_args)> parse_func;
-  const char* filename = "";
+  const char* filename = "<unknown>";
   int num_needed_args = 1;
   bool is_bool = false;
+  // true only for vector of core types.
   bool variable_num_args = false;
+  std::string help_text_left;
+  std::string type_string;
 };
 
 namespace mflags_impl {
@@ -231,31 +234,55 @@ inline Status ParseCoreTypesTuplesVector(const FieldArgs& field_args,
   return status;
 }
 
+std::string ValueString(int num_needed_args);
+
+template<typename T>
+inline std::string StrJoin(const std::vector<T>& str_list, const char* join) {
+  std::string output;
+  bool is_first = true;
+  for (auto& x : str_list) {
+    if (!is_first) output += join;
+    output += x;
+    is_first = false;
+  }
+  return output;
+}
+
 template<typename T>
 inline OneArgDesc MakeArgDesc(ArgDescOpts opts, T& bound_variable) {
   using Type = remove_cvref_t<T>;
-  static_assert(IsSupportedType<Type>::value, "Unsupported arg data type");
-  OneArgDesc output{.opts=opts};
+  static_assert(IsSupportedType<Type>::value, "Unsupported arg data type. "
+      "Only core types, tuple/pair of core types, vector of core types, and "
+      "vector of tuple/pair of core types are supported. Core types include "
+      "int, char, bool, std::string, const char*, double");
+  OneArgDesc output{.opts=opts, .type_string=TypeStr<Type>()};
+  auto help_text_left = StrJoin(opts.names, ", ");
   if constexpr (IsCoreType<Type>::value) {
+    help_text_left += std::is_same<Type, bool>::value ? "": " VALUE";
     output.parse_func = [&bound_variable](const FieldArgs& field_args) {
       return ParseCoreTypes(field_args, bound_variable);
     };
   } else if constexpr (IsTupleOfCoreTypes<Type>::value) {
     output.num_needed_args = 2;  // TODO: handle tuple as well.
+    help_text_left += ValueString(output.num_needed_args);
     output.parse_func = [&bound_variable](const FieldArgs& field_args) {
       return ParseCoreTypesTuple(field_args, bound_variable);
     };
   } else if constexpr (IsVectorOfCoreTypes<Type>::value) {
     output.variable_num_args = true;
+    help_text_left += " VALUES...";
     output.parse_func = [&bound_variable](const FieldArgs& field_args) {
       return ParseCoreTypesVector(field_args, bound_variable);
     };
   } else if constexpr (IsVectorOfTupleOfCoreTypes<Type>::value) {
     output.num_needed_args = 2;  // TODO: handle tuple as well.
+    help_text_left += ValueString(output.num_needed_args);
+    help_text_left = "( " + help_text_left + " )*";
     output.parse_func = [&bound_variable](const FieldArgs& field_args) {
       return ParseCoreTypesTuplesVector(field_args, bound_variable);
     };
   }
+  output.help_text_left = help_text_left;
   output.is_bool = std::is_same<Type, bool>::value;
   return output;
 }
@@ -278,7 +305,7 @@ class ArgsDescriptor {
   Status ParseFlagsInternal(int argc, const char* const* argv) const;
   Status ParseFlagsInternal(const std::vector<const char*>& argv) const;
   const auto& DescList() const { return arg_desc_list_;}
-  std::string FullHelpText() const { return "TODO"; };
+  std::string FullHelpText() const;
   void AddGlobalDesc() {}
 
  private:
