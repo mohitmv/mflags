@@ -1,10 +1,9 @@
 // TODOs:
-// 6. Add support and test out DEFINE_MFLAGS stuff.
-// 1. Test out positional params. (var-number of args, fixed args, tuple)
+// 1. Test out positional params. (var-number of args, fixed args, tuple), and
+//    handle help text for it.
 // 2. Add support for std::tuple and test it out.
 // 3. Add support for required params and test them out.
 // 4. Test out issues with ArgsDescriptor example - field declared twice.
-// 9. Improve help text and handle positional args.
 
 #include "mflags.h"
 
