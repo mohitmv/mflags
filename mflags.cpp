@@ -103,6 +103,11 @@ Status Parser::ParseFlags(int argc, const char* const* argv,
   auto result = PreprocessArgDescList();
   if (!result.ok()) return result;
   CreateFieldValues(argc, argv);
+  for (auto& item: field_values_) {
+    auto& arg_desc = field_names_map_.at(item.field_name);
+    result = arg_desc->parse_func(item);
+    if (!result.ok()) return result;
+  }
   if (positional_arg_desc_ == nullptr && positional_args_.size() > 0) {
     return Status::Error("Unrecognized param: ")
       << mflags_impl::StrJoin(positional_args_, " ");
@@ -110,11 +115,6 @@ Status Parser::ParseFlags(int argc, const char* const* argv,
   if (positional_arg_desc_ != nullptr) {
     result = positional_arg_desc_->parse_func(
         {"positional_args", positional_args_});
-    if (!result.ok()) return result;
-  }
-  for (auto& item: field_values_) {
-    auto& arg_desc = field_names_map_.at(item.field_name);
-    result = arg_desc->parse_func(item);
     if (!result.ok()) return result;
   }
   return Status::OK;
@@ -171,9 +171,10 @@ std::string mflags_impl::ValueString(int num_needed_args) {
 
 ArgsDescriptor::ArgsDescriptor(std::string help_text)
     : help_text_(help_text) {
-  arg_desc_list_.push_back(mflags_impl::MakeArgDesc(
-      {.names={"-h", "--help"},
-       .help_text="Show this help message and exit"},help_opt_));
+  AddArg({
+    .names={"-h", "--help"},
+    .help_text="Show this help message and exit"}, &help_opt_);
+  AddArgList(mflags_impl::GlobalArgDescList());
 }
 
 void ArgsDescriptor::ParseFlags(int argc, const char* const* argv) const {
@@ -191,7 +192,7 @@ void ArgsDescriptor::ParseFlags(int argc, const char* const* argv) const {
 
 std::string ArgsDescriptor::FullHelpText() const {
   constexpr size_t left_size_max_size = 24;
-  auto lArgHelpString = [&](const OneArgDesc& arg_desc) {
+  auto lArgHelpString = [&](const OneArgDesc& arg_desc, size_t index) {
     std::ostringstream oss;
     oss << "  ";
     if (arg_desc.opts.positional) {
@@ -206,8 +207,11 @@ std::string ArgsDescriptor::FullHelpText() const {
       left_side += "\n" + std::string(left_size_max_size, ' ');
     }
     std::ostringstream oss2;
-    oss2 << left_side << "  " << arg_desc.opts.help_text << ". Type: "
-         << arg_desc.type_string << "\n";
+    oss2 << left_side << "  " << arg_desc.opts.help_text << ".";
+    if (index > 0) {
+      oss2 << " Type: " << arg_desc.type_string;
+    }
+    oss2 << "\n";
     return oss2.str();
   };
 
@@ -215,16 +219,14 @@ std::string ArgsDescriptor::FullHelpText() const {
   oss << "\n";
   oss << help_text_ << "\n\n";
   oss << "Command line options:\n\n";
-  for (auto& arg_desc : arg_desc_list_) {
-    oss << lArgHelpString(arg_desc);
+  for (size_t i = 0 ; i < arg_desc_list_.size(); ++i) {
+    oss << lArgHelpString(arg_desc_list_[i], i);
   }
   return oss.str();
 }
 
 void ParseFlags(int argc, const char* const* argv) {
-  ArgsDescriptor args_desc{};
-  args_desc.AddGlobalDesc();
-  args_desc.ParseFlags(argc, argv);
+  ArgsDescriptor().ParseFlags(argc, argv);
 }
 
 Status ArgsDescriptor::ParseFlagsInternal(
@@ -235,6 +237,11 @@ Status ArgsDescriptor::ParseFlagsInternal(
 Status ArgsDescriptor::ParseFlagsInternal(
       const std::vector<const char*>& argv) const {
   return ParseFlagsInternal(static_cast<int>(argv.size()), argv.data());
+}
+
+std::vector<OneArgDesc>& mflags_impl::GlobalArgDescList() {
+  static std::vector<OneArgDesc> s;
+  return s;
 }
 
 }  // namespace mflags

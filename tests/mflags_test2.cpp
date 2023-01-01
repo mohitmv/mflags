@@ -272,7 +272,7 @@ This is an example program
 
 Command line options:
 
-  -h, --help              Show this help message and exit. Type: bool
+  -h, --help              Show this help message and exit.
   -f1 VALUE1 VALUE2       For F1. Type: pair<int, int>
   -f2, --field2 VALUE     For F2. Type: int
   ( -f4, --field4 VALUE1 VALUE2 )*

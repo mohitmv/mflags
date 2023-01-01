@@ -134,7 +134,7 @@ inline std::string TypeStrImpl(std::vector<T>) {
 template<typename T>
 inline std::string TypeStr() { return TypeStrImpl(T{}); }
 
-// GlobalState& GlobalStateInstance();
+std::vector<OneArgDesc>& GlobalArgDescList();
 
 inline bool IsBoolString(const char* str) {
   return (std::string_view(str) == "true" || std::string_view(str) == "false");
@@ -287,6 +287,17 @@ inline OneArgDesc MakeArgDesc(ArgDescOpts opts, T& bound_variable) {
   return output;
 }
 
+
+template<typename T>
+class AutoAssign {
+ public:
+  AutoAssign(T* variable, const char* filename, ArgDescOpts opts) {
+    auto&& arg_desc = MakeArgDesc(opts, *variable);
+    arg_desc.filename = filename;
+    GlobalArgDescList().push_back(std::move(arg_desc));
+  }
+};
+
 }  // namespace mflags_impl
 
 // Overall arguments descriptor.
@@ -298,15 +309,16 @@ class ArgsDescriptor {
   ArgsDescriptor& operator=(const ArgsDescriptor&) = delete;
   template<typename T>
   void AddArg(ArgDescOpts opts, T* bound_variable);
-  void AddArgList(std::vector<OneArgDesc> list) {
-    arg_desc_list_.insert(arg_desc_list_.end(), list.begin(), list.end());
-  }
   void ParseFlags(int argc, const char* const* argv) const;
   Status ParseFlagsInternal(int argc, const char* const* argv) const;
   Status ParseFlagsInternal(const std::vector<const char*>& argv) const;
   const auto& DescList() const { return arg_desc_list_;}
   std::string FullHelpText() const;
-  void AddGlobalDesc() {}
+
+ private:
+  void AddArgList(const std::vector<OneArgDesc>& list) {
+    arg_desc_list_.insert(arg_desc_list_.end(), list.begin(), list.end());
+  }
 
  private:
   std::string help_text_;
@@ -324,12 +336,9 @@ void ParseFlags(int argc, const char* const* argv);
 
 }  // namespace mflags
 
-// #define MFLAG_ODR_INIT() ::mflags::GlobalState&                         \
-//   ::mflags::GlobalStateInstance() { static GlobalState s; return s; }
-// #define DECLARE_MFLAG(type, var) extern type MFLAGS_ ## var;
-// #define DEFINE_MFLAG(type, var, default_value, help_text)               \
-//   type MFLAGS_ ## var = default_value;                                  \
-//   ::mflags::AutoAssign<type> AutoAssignVar_ ## var {                    \
-//       #var, __FILE__, &MFLAGS_ ## var, help_text, #type};
+#define ADD_GLOBAL_MFLAG(type, var, default_value, ...)             \
+  type var = default_value;                                         \
+  ::mflags::mflags_impl::AutoAssign<type> AutoAssignVar_ ## var {   \
+      &var, __FILE__, ::mflags::ArgDescOpts(__VA_ARGS__) };
 
 #endif  // MFLAGS_H

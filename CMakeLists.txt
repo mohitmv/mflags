@@ -17,3 +17,7 @@ add_executable(mflags_test2 tests/mflags_test2.cpp)
 target_include_directories(mflags_test2 PRIVATE ${CMAKE_SOURCE_DIR})
 target_link_libraries(mflags_test2 PRIVATE mflags)
 
+add_executable(mflags_example tests/mflags_example.cpp)
+target_include_directories(mflags_example PRIVATE ${CMAKE_SOURCE_DIR})
+target_link_libraries(mflags_example PRIVATE mflags)
+
