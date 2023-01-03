@@ -272,11 +272,11 @@ This is an example program
 Command line options:
 
   -h, --help              Show this help message and exit.
-  -f1 VALUE1 VALUE2       For F1. Type: pair<int, int>
-  -f2, --field2 VALUE     For F2. Type: int
+  -f1 VALUE1 VALUE2       For F1. Type: pair<int, int> ; default: (0, 0)
+  -f2, --field2 VALUE     For F2. Type: int ; default: 0
   ( -f4, --field4 VALUE1 VALUE2 )*
                           For F4. Type: vector<pair<int, int>>
-  -f3 VALUE               For F3. Type: const char*
+  -f3 VALUE               For F3. Type: const char* ; default: nullptr
   -f5 VALUES...           For F5. Type: vector<int>
 )";
 

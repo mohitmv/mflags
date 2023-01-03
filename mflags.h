@@ -62,6 +62,7 @@ struct OneArgDesc {
   bool variable_num_args = false;
   std::string help_text_left;
   std::string type_string;
+  std::string default_value_str;
 };
 
 namespace mflags_impl {
@@ -248,6 +249,22 @@ inline std::string StrJoin(const std::vector<T>& str_list, const char* join) {
   return output;
 }
 
+inline std::string ToString(bool x) { return x ? "true": "false"; }
+inline std::string ToString(const std::string& x) {
+  return x.empty() ? std::string("\"\"") : x;
+}
+inline std::string ToString(const char* x) {
+  return x ? ToString(std::string(x)): std::string("nullptr");
+}
+
+template<typename T>
+inline std::string ToString(const T& x) { return std::to_string(x); }
+
+template<typename T1, typename T2>
+inline std::string ToString(const std::pair<T1, T2>& x) {
+  return "(" + ToString(x.first) + ", " + ToString(x.second) + ")";
+}
+
 template<typename T>
 inline OneArgDesc MakeArgDesc(ArgDescOpts opts, T& bound_variable) {
   using Type = remove_cvref_t<T>;
@@ -259,11 +276,13 @@ inline OneArgDesc MakeArgDesc(ArgDescOpts opts, T& bound_variable) {
   auto help_text_left = StrJoin(opts.names, ", ");
   if constexpr (IsCoreType<Type>::value) {
     help_text_left += std::is_same<Type, bool>::value ? "": " VALUE";
+    output.default_value_str = ToString(bound_variable);
     output.parse_func = [&bound_variable](const FieldArgs& field_args) {
       return ParseCoreTypes(field_args, bound_variable);
     };
   } else if constexpr (IsTupleOfCoreTypes<Type>::value) {
     output.num_needed_args = 2;  // TODO: handle tuple as well.
+    output.default_value_str = ToString(bound_variable);
     help_text_left += ValueString(output.num_needed_args);
     output.parse_func = [&bound_variable](const FieldArgs& field_args) {
       return ParseCoreTypesTuple(field_args, bound_variable);

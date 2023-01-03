@@ -15,26 +15,6 @@
 namespace mflags {
 namespace {
 
-// template<typename T>
-// class AutoAssign {
-//  public:
-//   static_assert(
-//       std::is_same<T, int>::value || std::is_same<T, bool>::value ||
-//         std::is_same<T, double>::value || std::is_same<T, const char*>::value,
-//       "mflags supports flags of type int, bool, double and const char* only.");
-//   AutoAssign(const char* name, const char* filename, T* variable,
-//              const char* help_text, const char* type_string) {
-//     auto& g_state = GlobalStateInstance();
-//     g_state.help_text << " --" << name << " VALUE  : (" << type_string << ") "
-//                       << help_text << "\n\n";
-//     g_state.expected_command_line_option.insert(name);
-//     g_state.unresolved_flags.push_back({name,
-//       [name, variable, filename](const char* value) {
-//         StrValueToVariable(name, value, filename, variable);
-//       }});
-//   }
-// };
-
 bool SplitOnEqual(std::string_view sv, std::string_view& first,
                   std::string_view& second) {
   for (size_t i = 0; i < sv.size(); i++) {
@@ -210,6 +190,9 @@ std::string ArgsDescriptor::FullHelpText() const {
     oss2 << left_side << "  " << arg_desc.opts.help_text << ".";
     if (index > 0) {
       oss2 << " Type: " << arg_desc.type_string;
+      if (!arg_desc.default_value_str.empty()) {
+        oss2 << " ; default: " << arg_desc.default_value_str;
+      }
     }
     oss2 << "\n";
     return oss2.str();
